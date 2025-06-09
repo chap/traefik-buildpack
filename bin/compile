@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+# Exit on error
+set -e
+
+# Define buildpack directories
+BUILDPACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BUILD_DIR="$1"
+CACHE_DIR="$2"
+ENV_DIR="$3"
+
+# Create necessary directories
+mkdir -p "$BUILD_DIR/.traefik"
+
+# Download and install Traefik
+TRAEFIK_VERSION="v2.10.4"
+TRAEFIK_URL="https://github.com/traefik/traefik/releases/download/${TRAEFIK_VERSION}/traefik_${TRAEFIK_VERSION}_linux_amd64.tar.gz"
+
+echo "-----> Downloading Traefik ${TRAEFIK_VERSION}"
+curl -L "$TRAEFIK_URL" -o traefik.tar.gz
+tar xzf traefik.tar.gz
+mv traefik "$BUILD_DIR/.traefik/"
+rm traefik.tar.gz
+
+# Make scripts executable
+chmod +x "$BUILD_DIR/.traefik/traefik"
+
+echo "-----> Traefik buildpack completed" 
