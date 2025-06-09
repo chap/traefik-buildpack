@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+echo "## Traefik Buildpack"
+
+# 1. CREATE THE LAYER DIRECTORY
+traefik_layer="${CNB_LAYERS_DIR}"/traefik
+mkdir -p "${traefik_layer}"
+
+
+# 2. DOWNLOAD Traefik
+
+# Detect OS and architecture
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m)
+
+# Map architecture to Traefik's naming convention
+case $ARCH in
+    "x86_64")
+        ARCH="amd64"
+        ;;
+    "arm64"|"aarch64")
+        ARCH="arm64"
+        ;;
+    *)
+        echo "Unsupported architecture: $ARCH"
+        exit 1
+        ;;
+esac
+
+# Map OS to Traefik's naming convention
+case $OS in
+    "darwin")
+        OS="darwin"
+        ;;
+    "linux")
+        OS="linux"
+        ;;
+    *)
+        echo "Unsupported OS: $OS"
+        exit 1
+        ;;
+esac
+
+# Get the latest version of Traefik
+LATEST_VERSION=$(curl -s https://api.github.com/repos/traefik/traefik/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+
+echo "---> Downloading and extracting Traefik ${LATEST_VERSION} for ${OS}/${ARCH}..."
+traefik_url=https://github.com/traefik/traefik/releases/download/${LATEST_VERSION}/traefik_${LATEST_VERSION}_${OS}_${ARCH}.tar.gz
+wget -q -O - "$traefik_url" | tar -xzf - --strip-components 1 -C "${traefik_layer}"
+
+
+# 3. MAKE Traefik AVAILABLE DURING LAUNCH and CACHE the LAYER
+# ========== MODIFIED ===========
+ cat > "${CNB_LAYERS_DIR}/traefik.toml" << EOL
+[types]
+cache = true
+launch = true
+EOL
+
+# # 4. SET DEFAULT START COMMAND
+# cat > "${CNB_LAYERS_DIR}/launch.toml" << EOL
+# # our web process
+# [[processes]]
+# type = "web"
+# command = ["node", "app.js"]
+# default = true
+# EOL
