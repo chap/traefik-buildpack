@@ -10,19 +10,59 @@ CACHE_DIR="$2"
 ENV_DIR="$3"
 
 # Create necessary directories
-mkdir -p "$BUILD_DIR/.traefik"
+mkdir -p "$BUILD_DIR/vendor/bin"
+mkdir -p "$BUILD_DIR/.profile.d"
+mkdir -p "$CACHE_DIR"
 
-# Download and install Traefik
-TRAEFIK_VERSION="v2.10.4"
+# Define Traefik version and paths
+TRAEFIK_VERSION="v3.4.1"
 TRAEFIK_URL="https://github.com/traefik/traefik/releases/download/${TRAEFIK_VERSION}/traefik_${TRAEFIK_VERSION}_linux_amd64.tar.gz"
+CACHED_BINARY="$CACHE_DIR/traefik-${TRAEFIK_VERSION}"
+VERSION_FILE="$CACHE_DIR/traefik-version"
 
-echo "-----> Downloading Traefik ${TRAEFIK_VERSION}"
-curl -L "$TRAEFIK_URL" -o traefik.tar.gz
-tar xzf traefik.tar.gz
-mv traefik "$BUILD_DIR/.traefik/"
-rm traefik.tar.gz
+# Function to check if we need to download
+needs_download() {
+    # Check if binary exists
+    if [[ ! -f "$CACHED_BINARY" ]]; then
+        return 0  # true - need to download
+    fi
+    
+    # Check if version file exists and matches
+    if [[ ! -f "$VERSION_FILE" ]] || [[ "$(cat "$VERSION_FILE" 2>/dev/null)" != "$TRAEFIK_VERSION" ]]; then
+        return 0  # true - need to download
+    fi
+    
+    return 1  # false - don't need to download
+}
+
+# Download and cache Traefik if needed
+if needs_download; then
+    echo "-----> Downloading Traefik ${TRAEFIK_VERSION}"
+    curl -L "$TRAEFIK_URL" -o traefik.tar.gz
+    tar xzf traefik.tar.gz
+    
+    # Store in cache with version suffix
+    mv traefik "$CACHED_BINARY"
+    echo "$TRAEFIK_VERSION" > "$VERSION_FILE"
+    
+    # Clean up
+    rm traefik.tar.gz
+    
+    echo "-----> Traefik ${TRAEFIK_VERSION} cached"
+else
+    echo "-----> Using cached Traefik ${TRAEFIK_VERSION}"
+fi
+
+# Copy from cache to build directory
+cp "$CACHED_BINARY" "$BUILD_DIR/vendor/bin/traefik"
 
 # Make scripts executable
-chmod +x "$BUILD_DIR/.traefik/traefik"
+chmod +x "$BUILD_DIR/vendor/bin/traefik"
+
+# Create .profile.d script to add vendor/bin to PATH
+cat > "$BUILD_DIR/.profile.d/traefik-defaults.sh" << 'EOF'
+# add vendor binaries to the path
+export PATH=$PATH:$HOME/vendor/bin
+EOF
 
 echo "-----> Traefik buildpack completed" 
